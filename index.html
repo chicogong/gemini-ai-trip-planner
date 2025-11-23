@@ -45,6 +45,41 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #94a3b8; 
       }
+
+      /* Print Styles */
+      @media print {
+        @page {
+          margin: 0;
+          size: auto;
+        }
+        body {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          background-color: white !important;
+        }
+        .no-print {
+          display: none !important;
+        }
+        .print-break-inside-avoid {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        /* Ensure shadows don't mess up print */
+        .shadow-lg, .shadow-xl, .shadow-md {
+          box-shadow: none !important;
+          border: 1px solid #e2e8f0 !important;
+        }
+        /* Force hero text to be visible */
+        .hero-text-print {
+          color: white !important;
+          text-shadow: 0 0 10px rgba(0,0,0,0.8) !important;
+        }
+        /* Expand layout for print */
+        .max-w-5xl {
+          max-width: 100% !important;
+          padding: 0 2cm !important;
+        }
+      }
     </style>
   <script type="importmap">
 {
