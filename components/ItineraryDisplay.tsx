@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TripItinerary } from '../types';
 import { Clock, MapPin, CheckCircle2, Printer, FileText, ArrowLeft, Download } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
@@ -13,38 +13,61 @@ const COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({ data, heroImage, onReset }) => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   
   // Calculate total budget for chart display purposes (sum of breakdown)
   const totalBudget = data.budget_breakdown.reduce((acc, curr) => acc + curr.amount, 0);
+
+  // Fix for Recharts "width(-1)" warning: ensure chart only renders after component is mounted and has dimensions
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handlePrint = () => {
     window.print();
   };
 
-  const handleGeneratePDF = () => {
+  const handleGeneratePDF = async () => {
+    if (typeof window === 'undefined') return;
+    const worker = (window as any).html2pdf;
+    if (!worker) {
+      alert("PDF 生成组件尚未加载完成，请稍后再试或刷新页面。");
+      return;
+    }
+
     setIsGeneratingPdf(true);
+    
+    // Scroll to top to ensure html2canvas captures the start of the document correctly
+    window.scrollTo(0, 0);
+    
+    // Small delay to ensure any lazy loaded images or layout shifts are settled after scroll
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     const element = document.getElementById('itinerary-content');
     
     // Options for html2pdf
-    // We use a slightly smaller scale to keep file size reasonable but quality high enough
     const opt = {
-      margin:       [0, 0, 0, 0], // No margin because we want the hero image to touch edges
+      margin:       0,
       filename:     `${data.trip_title.replace(/\s+/g, '_')}_攻略.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, logging: false }, // useCORS is critical for external images
+      image:        { type: 'jpeg', quality: 0.95 },
+      html2canvas:  { 
+        scale: 1.5, // Reduced from 2 to avoid huge memory usage/crashes on long pages
+        useCORS: true, // Vital for external images
+        allowTaint: true,
+        logging: false,
+        scrollY: 0
+      },
       jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    // Access the global html2pdf variable
-    const worker = (window as any).html2pdf();
-    
-    worker.set(opt).from(element).save().then(() => {
-      setIsGeneratingPdf(false);
-    }).catch((err: any) => {
+    try {
+      await worker().set(opt).from(element).save();
+    } catch (err: any) {
       console.error("PDF Generation failed", err);
+      alert("PDF生成失败 (可能是因为跨域图片限制)。\n建议您使用右侧的【普通打印】按钮，并在打印选项中选择 '另存为 PDF'。");
+    } finally {
       setIsGeneratingPdf(false);
-      alert("PDF生成失败，请尝试使用打印按钮。");
-    });
+    }
   };
 
   const handleDownloadText = () => {
@@ -143,27 +166,32 @@ const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({ data, heroImage, on
                   <span className="text-sm font-normal text-slate-500 ml-2">约</span>
                 </div>
               </div>
-              {/* Added min-w-0 to prevent flex item overflow/sizing issues with Recharts */}
+              
+              {/* Chart Container - Fixed height with min-w-0 for Recharts responsiveness */}
               <div className="mt-4 h-24 w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={data.budget_breakdown}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={25}
-                      outerRadius={40}
-                      paddingAngle={2}
-                      dataKey="amount"
-                      isAnimationActive={false} // Disable animation for print/pdf compatibility
-                    >
-                      {data.budget_breakdown.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip formatter={(value: number) => `¥${value}`} />
-                  </PieChart>
-                </ResponsiveContainer>
+                {isMounted ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={data.budget_breakdown}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={25}
+                        outerRadius={40}
+                        paddingAngle={2}
+                        dataKey="amount"
+                        isAnimationActive={false} // Disable animation for print/pdf compatibility
+                      >
+                        {data.budget_breakdown.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip formatter={(value: number) => `¥${value}`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-slate-300">Loading chart...</div>
+                )}
               </div>
             </div>
 
