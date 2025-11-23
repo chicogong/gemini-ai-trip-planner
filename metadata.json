@@ -1,0 +1,5 @@
+{
+  "name": "WanderAI - 智能旅游规划助手",
+  "description": "一个由 AI 驱动的旅行助手，可生成详细的图文行程、预算明细和个性化摄影建议。",
+  "requestFramePermissions": []
+}
